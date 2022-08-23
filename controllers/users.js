@@ -1,4 +1,5 @@
 const { GraphQLClient, gql } = require('graphql-request');
+const axios = require('axios').default;
 const endpoint = process.env.GQL_ENDPOINT || 'http://localhost:8080/v1/graphql';
 
 module.exports = {

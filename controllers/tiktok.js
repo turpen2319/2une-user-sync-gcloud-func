@@ -2,28 +2,29 @@ const axios = require('axios').default;
 const FormData = require('form-data');
 const fs = require('fs/promises');
 
-
-const PROVIDER = 'oauth_tiktok'; //idk if this is correct...pretty sure it is
-// const PROVIDER = 'oauth_google'; 
+const PROVIDER = 'oauth_tiktok';
+ 
 
 module.exports = {
-    uploadVideo
+    uploadVideo,
+    getAccessToken,
+    getTikTokUploadParams
 }
 
 async function uploadVideo(req, res) {
-    const userId = req.params.userId;
-    
+    console.log("\n\nMY DATA ----> ", req.body, "-----------------")
+
+    const userId = req.params.userId; 
     const accessToken = await getAccessToken(userId);
     const openId = await getTikTokOpenId(userId);
-
     console.log({accessToken, openId})
-    
 
-    const video = await fs.readFile(process.env.HOME + '/Desktop/test1.mp4');
     const endpoint = `https://open-api.tiktok.com/share/video/upload/?access_token=${accessToken}&open_id=${openId}`
 
+    const video = await fs.readFile(process.env.HOME + '/Desktop/test1.mp4');
     const form = new FormData();
     form.append('video', video, 'test1.mp4');
+
     try {
         const uploadResponse = await axios.post(endpoint, form, {
             headers: {
@@ -43,6 +44,8 @@ async function uploadVideo(req, res) {
     
 }
 
+//this will fail if user hasn't logged in...fine in production flow, but 
+//make sure to log in the user you're testing with before uploading on their behalf
 async function getAccessToken(userId) {
     const endpoint = `https://api.clerk.dev/v1/users/${userId}/oauth_access_tokens/${PROVIDER}` //injection risk?
     
@@ -87,5 +90,22 @@ async function getTikTokOpenId(userId) {
 
     } catch (error) {
         return error;
+    }
+}
+
+async function getTikTokUploadParams(req, res) {
+    const { userId } = req.params;
+    try {
+        const params = {
+            openId: await getTikTokOpenId(userId),
+            accessToken: await getAccessToken(userId)
+        }
+    
+        console.log(params);
+    
+        res.json(params);
+        
+    } catch (error) {
+        res.status(400).json(error);
     }
 }
