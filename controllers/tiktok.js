@@ -59,7 +59,6 @@ async function getAccessToken(userId) {
             }
 
         });
-        console.log('\n\n\n', response.data[0].token, '\n\n\n');
 
         return response.data[0].token;
 
@@ -84,11 +83,21 @@ async function getTikTokOpenId(userId) {
         });
 
         const clerkUserObj = response.data;
-        const userTikTokOpenId = clerkUserObj.external_accounts[0].provider_user_id; //this will need to change if we allow users to connect to other external accounts
+        let userTikTokOpenId;
+
+        //users might have multiple social accounts linked w/ clerk at some point...so we need to make sure we're finding the openId for the desired provider
+        if(clerkUserObj.external_accounts.length > 1) {
+            for(let account of clerkUserObj.external_accounts) {
+                if (account.provider === 'oauth_tiktok') {
+                    userTikTokOpenId = account.provider_user_id;
+                }
+            }
+        }
         
         return userTikTokOpenId;
 
     } catch (error) {
+        console.log("getTikTokOpenId error --> ", error)
         return error;
     }
 }
