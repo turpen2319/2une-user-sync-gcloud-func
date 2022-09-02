@@ -7,6 +7,7 @@ const PROVIDER = 'oauth_tiktok';
 
 module.exports = {
     uploadVideo,
+    getVideoList,
     getAccessToken,
     getTikTokUploadParams
 }
@@ -42,6 +43,31 @@ async function uploadVideo(req, res) {
         res.send(error)
     }
     
+}
+
+async function getVideoList(req, res) {
+
+    const accessToken =  await getAccessToken(req.params.userId);
+    const endpoint = `https://open-api.tiktok.com/video/list/?access_token=${accessToken}`
+
+    try {
+        const response = await axios({
+            method: "POST",
+            url: endpoint,
+            headers: {
+                "Content-type": "application/json"
+            },
+            data: {
+                fields: ["id", "embed_link", "title", "embed_html", "height", "width", "cover_image_url"]
+            }
+        })
+
+        console.log("vid list response --> ", response.data);
+        res.send(response.data);
+    } catch (error) {
+        console.log("tiktok vid list error --> ", error);
+        res.send(error);
+    }
 }
 
 //this will fail if user hasn't logged in...fine in production flow, but 
@@ -83,14 +109,14 @@ async function getTikTokOpenId(userId) {
         });
 
         const clerkUserObj = response.data;
+        console.log(clerkUserObj);
         let userTikTokOpenId;
 
         //users might have multiple social accounts linked w/ clerk at some point...so we need to make sure we're finding the openId for the desired provider
-        if(clerkUserObj.external_accounts.length > 1) {
-            for(let account of clerkUserObj.external_accounts) {
-                if (account.provider === 'oauth_tiktok') {
-                    userTikTokOpenId = account.provider_user_id;
-                }
+        
+        for(let account of clerkUserObj.external_accounts) {
+            if (account.provider === 'oauth_tiktok') {
+                userTikTokOpenId = account.provider_user_id;
             }
         }
         
