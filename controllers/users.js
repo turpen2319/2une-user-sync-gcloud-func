@@ -1,5 +1,4 @@
 const { GraphQLClient, gql } = require('graphql-request');
-const { restart } = require('nodemon');
 const { getVideoList } = require('./tiktok');
 const axios = require('axios').default;
 const endpoint = process.env.GQL_ENDPOINT || 'http://localhost:8080/v1/graphql';
@@ -187,7 +186,7 @@ async function notifyLevelUp(req, res) {
     const authToken = process.env.TWILIO_AUTH_TOKEN;
     const client = require('twilio')(accountSid, authToken);
 
-    const msg = `Wooooow ${score} points 👏  Not bad. Pick up where you left off at left off at level ${level + 1} --> https://the-rap-test.vercel.app/draketest/levels` //having routing to the level would be cool here
+    const msg = `Wooooow ${score} points. Not bad. Pick up where you left off at left off at level ${level + 1} --> https://the-rap-test.vercel.app/draketest/levels` //having routing to the level would be cool here
     try {
         const response = await client.messages
             .create({
