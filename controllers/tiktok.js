@@ -1,4 +1,5 @@
 const axios = require('axios').default;
+const { response } = require('express');
 const FormData = require('form-data');
 const fs = require('fs/promises');
 
@@ -45,9 +46,9 @@ async function uploadVideo(req, res) {
     
 }
 
-async function getVideoList(req, res) {
+async function getVideoList(userId) {
 
-    const accessToken =  await getAccessToken(req.params.userId);
+    const accessToken =  await getAccessToken(userId);
     const endpoint = `https://open-api.tiktok.com/video/list/?access_token=${accessToken}`
 
     try {
@@ -63,10 +64,10 @@ async function getVideoList(req, res) {
         })
 
         console.log("vid list response --> ", response.data);
-        res.send(response.data);
+        return response.data;
     } catch (error) {
         console.log("tiktok vid list error --> ", error);
-        res.send(error);
+        return error;
     }
 }
 
