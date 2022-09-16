@@ -1,11 +1,13 @@
 const express = require('express');
 const cors = require('cors');
+const gcpCors = require('./middleware')
 require('dotenv').config();
 
 const app = express();
 
-//middle ware
+//middleware
 app.use(cors());
+app.use(gcpCors);
 
 app.use(express.json({limit: '50mb'})); //might need to increase this
 

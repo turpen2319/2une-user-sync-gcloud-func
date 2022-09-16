@@ -181,6 +181,7 @@ async function onCreateSession(req, res) {
 
 
 async function notifyLevelUp(req, res) {
+    console.log("req.body --> ",req.body)
     const { level, score, artist, phoneNumber } = req.body.data;
     const accountSid = process.env.TWILIO_ACCOUNT_SID;
     const authToken = process.env.TWILIO_AUTH_TOKEN;
