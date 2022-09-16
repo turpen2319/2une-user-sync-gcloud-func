@@ -182,7 +182,7 @@ async function onCreateSession(req, res) {
 
 async function notifyLevelUp(req, res) {
     console.log("req.body --> ",req.body)
-    const { level, score, artist, phoneNumber } = req.body.data;
+    const { level, score, artist, phoneNumber } = req.body; // why was the console in my local react app giving me a cors error when it was just that I was trying to access these props via req.body.data??? was the res not set yet? need better error handling
     const accountSid = process.env.TWILIO_ACCOUNT_SID;
     const authToken = process.env.TWILIO_AUTH_TOKEN;
     const client = require('twilio')(accountSid, authToken);

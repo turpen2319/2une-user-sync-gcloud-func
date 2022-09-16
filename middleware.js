@@ -1,3 +1,4 @@
+//not 100% sure if i need this
 
 module.exports = function gcpCors(req, res, next) {
     // Set CORS headers for preflight requests
