@@ -2,6 +2,9 @@ const axios = require('axios').default;
 const { response } = require('express');
 const FormData = require('form-data');
 const fs = require('fs/promises');
+const {TranscoderServiceClient} =
+require('@google-cloud/video-transcoder').v1;
+
 
 const PROVIDER = 'oauth_tiktok';
  
@@ -10,11 +13,12 @@ module.exports = {
     uploadVideo,
     getVideoList,
     getAccessToken,
-    getTikTokUploadParams
+    getTikTokUploadParams,
+    createJobFromPreset
 }
 
 async function uploadVideo(req, res) {
-    console.log("\n\nMY DATA ----> ", req.body, "-----------------")
+    // console.log("\n\nMY DATA ----> ", req.body, "-----------------")
 
     const userId = req.params.userId; 
     const accessToken = await getAccessToken(userId);
@@ -23,9 +27,9 @@ async function uploadVideo(req, res) {
 
     const endpoint = `https://open-api.tiktok.com/share/video/upload/?access_token=${accessToken}&open_id=${openId}`
 
-    const video = await fs.readFile(process.env.HOME + '/Desktop/test1.mp4');
+    const video = await fs.readFile(process.env.HOME + '/Desktop/seekable2.webm');
     const form = new FormData();
-    form.append('video', video, 'test1.mp4');
+    form.append('video', video, 'seekable2.webm');
 
     try {
         const uploadResponse = await axios.post(endpoint, form, {
@@ -145,3 +149,36 @@ async function getTikTokUploadParams(req, res) {
         res.status(400).json(error);
     }
 }
+
+async function createJobFromPreset(req, res) {
+
+    const transcoderServiceClient = new TranscoderServiceClient();
+    const projectId = 'music-test-352900';
+    const location = 'us-central1';
+    const inputUri = 'gs://2une-video-transcode-bucket/transcode-test.webm';
+    const outputUri = 'gs://2une-video-transcode-bucket/transcode-output/';
+    const preset = 'preset/web-hd';
+
+    // Construct request
+    const request = {
+        parent: transcoderServiceClient.locationPath(projectId, location),
+        job: {
+        inputUri: inputUri,
+        outputUri: outputUri,
+        templateId: preset,
+        },
+    };
+
+    // Run request
+    try {
+        const [response] = await transcoderServiceClient.createJob(request);
+        console.log(`Job: ${response.name}`);
+        res.send(response.name)
+    } catch (error) {
+        console.log("\n\ncould not create transcode job -->", error)
+        res.send(error)
+    }
+}
+
+  
+

@@ -16,6 +16,7 @@
     "nodemon": "^2.0.16"
   },
   "dependencies": {
+    "@google-cloud/video-transcoder": "^2.2.1",
     "axios": "^0.27.2",
     "cors": "^2.8.5",
     "dotenv": "^16.0.1",
