@@ -7,7 +7,7 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "nodemon --exec \"npm start\"",
     "start": "npx functions-framework --target=hey --signature-type=http --port=8484",
-    "deploy": "gcloud functions deploy musictest-tiktok-auth --env-vars-file .env.yaml --entry-point hey --runtime nodejs14 --trigger-http --security-level=secure-optional --project music-test-352900"
+    "deploy": "gcloud functions deploy musictest-tiktok-auth --memory=512 --env-vars-file .env.yaml --entry-point hey --runtime nodejs14 --trigger-http --security-level=secure-optional --project music-test-352900"
   },
   "author": "Austin Turpen",
   "license": "ISC",
@@ -16,13 +16,17 @@
     "nodemon": "^2.0.16"
   },
   "dependencies": {
+    "@ffmpeg-installer/ffmpeg": "^1.1.0",
+    "@google-cloud/storage": "^6.5.2",
     "@google-cloud/video-transcoder": "^2.2.1",
     "axios": "^0.27.2",
     "cors": "^2.8.5",
     "dotenv": "^16.0.1",
     "express": "^4.18.1",
+    "fluent-ffmpeg": "^2.1.2",
     "graphql": "^16.5.0",
     "graphql-request": "^4.3.0",
+    "moment": "^2.29.4",
     "twilio": "^3.82.0"
   }
 }

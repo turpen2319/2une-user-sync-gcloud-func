@@ -1,35 +1,43 @@
 const axios = require('axios').default;
 const { response } = require('express');
 const FormData = require('form-data');
-const fs = require('fs/promises');
-const {TranscoderServiceClient} =
+const asyncFs = require('fs/promises');
+const fs = require('fs');
+const { TranscoderServiceClient } =
 require('@google-cloud/video-transcoder').v1;
+const { Storage, StorageOptions } = require('@google-cloud/storage');
+const ffmpegPath = require("@ffmpeg-installer/ffmpeg").path;
+const ffmpeg = require("fluent-ffmpeg");
+const moment = require("moment");
+const e = require('express');
+// set ffmpeg package path
+ffmpeg.setFfmpegPath(ffmpegPath);
 
 
 const PROVIDER = 'oauth_tiktok';
  
 
 module.exports = {
-    uploadVideo,
     getVideoList,
     getAccessToken,
     getTikTokUploadParams,
-    createJobFromPreset
+    createJobFromPreset,
+    webmToMP4TikTokUpload,
+    generateV4UploadSignedUrl
 }
 
-async function uploadVideo(req, res) {
+async function uploadVideo(userId, outputTempFileName) {
     // console.log("\n\nMY DATA ----> ", req.body, "-----------------")
-
-    const userId = req.params.userId; 
+ 
     const accessToken = await getAccessToken(userId);
     const openId = await getTikTokOpenId(userId);
     console.log({accessToken, openId})
 
     const endpoint = `https://open-api.tiktok.com/share/video/upload/?access_token=${accessToken}&open_id=${openId}`
-
-    const video = await fs.readFile(process.env.HOME + '/Desktop/seekable2.webm');
+    
+    const video = await asyncFs.readFile(outputTempFileName).catch(error => console.log("\n\ncan't read file ==> ", error));
     const form = new FormData();
-    form.append('video', video, 'seekable2.webm');
+    form.append('video', video, 'fixed.mp4');
 
     try {
         const uploadResponse = await axios.post(endpoint, form, {
@@ -41,11 +49,11 @@ async function uploadVideo(req, res) {
         });
         console.log("upload ---> \n\n", uploadResponse.data);
     
-        res.send(uploadResponse.data);
+        return uploadResponse.data;
         
     } catch (error) {
-        console.log(error);
-        res.send(error)
+        console.log("\n\ncouldn't upload --> ", error);
+        return error;
     }
     
 }
@@ -99,7 +107,6 @@ async function getAccessToken(userId) {
 
 }
 
-
 async function getTikTokOpenId(userId) {
     const endpoint = `https://api.clerk.dev/v1/users/${userId}`//for fetching a user by id
     
@@ -114,11 +121,9 @@ async function getTikTokOpenId(userId) {
         });
 
         const clerkUserObj = response.data;
-        console.log(clerkUserObj);
         let userTikTokOpenId;
 
-        //users might have multiple social accounts linked w/ clerk at some point...so we need to make sure we're finding the openId for the desired provider
-        
+        //users might have multiple social accounts linked w/ clerk at some point...so we need to make sure we're finding the openId for the desired provider 
         for(let account of clerkUserObj.external_accounts) {
             if (account.provider === 'oauth_tiktok') {
                 userTikTokOpenId = account.provider_user_id;
@@ -179,6 +184,113 @@ async function createJobFromPreset(req, res) {
         res.send(error)
     }
 }
+ 
 
-  
+async function webmToMP4TikTokUpload(req, res) {
+    const { objectName, userId } = req.body
+    console.log("hitting webmToMP4")
+    console.time("time:");
+    //download file from bucket into tmp dir
+    const bucketID = '2une-video-transcode-bucket';
+    const inputTempFileName = `/tmp/broken.webm`;
+    const outputTempFileName = `/tmp/fixed.mp4`;
+    const download = await downloadFile(bucketID, objectName, inputTempFileName);
+    
+    try {
+        // ffmpeg(process.env.HOME + "/Desktop/broken.webm")
+        console.log("\n\ninput file name --> ",inputTempFileName, "\n\n")
+        ffmpeg(inputTempFileName)
+            .outputOptions(['-vf pad=ceil(iw/2)*2:ceil(ih/2)*2', '-r 60'])
+            .output(outputTempFileName)
+            .audioCodec('aac')
+            .videoCodec('libx264')
+            .on("start", (commandLine) => {
+                console.log("ffmpeg conversion start: ", commandLine);
+            })
+            .on("progress", function(progress) {
+                console.log("Processing: " + progress.percent + "% done");
+            })
+            .on("stderr", function(stderrLine) {
+                console.log("Stderr output: " + stderrLine);
+            })
+            .on("codecData", function(data) {
+                console.log("Input is " + data.audio + " audio " + "with " + data.video + " video");
+            })
+            .on("end", async () => {
+                console.log("ffmpeg file has been locally converted successfully!...");
+                const tiktokRespone = await uploadVideo(userId, outputTempFileName); 
+                deletefileFromlocalStorage(inputTempFileName);
+                deletefileFromlocalStorage(outputTempFileName);
+                console.timeEnd("time:");
+                res.json(tiktokRespone);
+            })
+            .on('error', (error) => console.log(`something went wrong ==> \n ${error}`))
+            .run();
+        
+
+    } catch (error) {
+        console.log("something wrong with ffmpeg --> ", error)
+        res.json(error)
+    }
+}
+
+// this function will delete the locally stored file inside GCF "tmp" folder
+function deletefileFromlocalStorage(filename) {
+    try {
+        // Deletes file from local storage
+        fs.unlink(filename, (error) => {
+            if (error) {
+                console.error(`delete ${filename} file ERROR:`, error);
+            } else {
+                console.log(`${filename} file deleted.`);
+            }
+        });
+    } catch (error) {
+        console.error("fnDeletefilesFromlocalStorage() > ERROR:", error);
+    }
+}
+
+async function downloadFile(bucketID, gsFileName, inputTempFileName) {
+    const storage = new Storage();
+    const options = {
+        destination: inputTempFileName,
+    };
+
+    try {
+        await storage.bucket(bucketID).file(gsFileName).download(options);
+        console.log("\n\nfile downloaded from bucket")
+    } catch (error) {
+        console.log("\n\n\ncould not download file from bucket --> ", error);
+    }
+}
+
+async function generateV4UploadSignedUrl(req, res) {
+    const { userId, gameId } = req.body;
+
+    const objectName = `${gameId}-${userId}-${Date.now()}.webm`;
+    // const objectName = 'test-bucket-upload.webm';
+    const bucketName = '2une-video-transcode-bucket';
+
+    const storage = new Storage();
+
+    // These options will allow temporary uploading of the file with outgoing
+    // Content-Type: application/octet-stream header.
+    const options = {
+        version: 'v4',
+        action: 'write',
+        expires: Date.now() + 120 * 60 * 1000, // 120 minutes
+        contentType: 'video/webm'
+      };
+    try {
+        // Get a v4 signed URL for uploading file
+        const [url] = await storage
+            .bucket(bucketName)
+            .file(objectName)
+            .getSignedUrl(options);    
+        
+        res.json({signedUrl: url, objectName});
+    } catch (error) {
+        res.json(error)
+    }
+}
 
