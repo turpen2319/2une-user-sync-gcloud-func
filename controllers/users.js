@@ -79,7 +79,7 @@ async function sendClerkInvite(phoneNumber) {
 }
 
 async function insertUser(req, res) {
-
+    const { id, email_addresses, first_name, last_name, profile_image_url, phone_numbers } = req.body.data;
     const INSERT_USER_MUTATION = gql`
         mutation ($entry: users_insert_input!) {
             insert_users_one (object: $entry) {
@@ -90,7 +90,6 @@ async function insertUser(req, res) {
             }
         }
     `
-    const { id, email_addresses, first_name, last_name, profile_image_url } = req.body.data;
     const variables = {
         entry: {
             id: id,
@@ -101,9 +100,16 @@ async function insertUser(req, res) {
 
         }
     }
-    const data = await graphQLClient.request(INSERT_USER_MUTATION, variables)
-    console.log(JSON.stringify(data, undefined, 2))
-    res.send(data)
+    
+    try {
+        const data = await graphQLClient.request(INSERT_USER_MUTATION, variables)
+        console.log(JSON.stringify(data, undefined, 2))
+        const twilioResponse = await sendTwilioSMS("So you think you stan the 1975? You just joined the game. Congrats.", phone_numbers[0].phone_number)
+        res.send({data, twilioResponse});
+    } catch (error) {
+        console.log("something went wrong while inserting user --> ", error)
+        res.send(error);
+    }
 }
 
 async function updateUser(req, res) {
@@ -203,5 +209,25 @@ async function notifyLevelUp(req, res) {
     }
 }        
 
+async function sendTwilioSMS(msg, phoneNumber) {
+    const accountSid = process.env.TWILIO_ACCOUNT_SID;
+    const authToken = process.env.TWILIO_AUTH_TOKEN;
+    const client = require('twilio')(accountSid, authToken);
 
+    try {
+        const response = await client.messages
+            .create({
+                body: msg,
+                from: `${process.env.TWILIO_PHONE_NUMBER}`,
+                to: phoneNumber
+            }); 
+        console.log(response.sid);
+        return response.sid;
+    } catch (error) {
+        console.log("Could not sms --> ", error);
+        return error;
+    }
+}
+
+// sendTwilioSMS("So you think you stan the 1975? You just joined the game. Congrats.", "+16412319737")
 // RBAC Role based access control --> given a role what resoruces is role allowed to access
