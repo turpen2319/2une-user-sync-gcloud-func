@@ -58,6 +58,8 @@ async function uploadVideo(userId, outputTempFileName) {
     
 }
 
+// uploadVideo('user_2GC9oz0jtoE890wghStboa1nbQv', process.env.HOME + '/Desktop/test.webm.mp4')
+
 async function getVideoList(userId) {
 
     const accessToken =  await getAccessToken(userId);
@@ -102,7 +104,7 @@ async function getAccessToken(userId) {
         return response.data[0].token;
 
     } catch (error) {
-        return error;
+        return `\ncould not get access token --> ${error}`;
     }
 
 }
@@ -194,9 +196,9 @@ async function webmToMP4TikTokUpload(req, res) {
     const bucketID = '2une-video-transcode-bucket';
     const inputTempFileName = `/tmp/broken.webm`;
     const outputTempFileName = `/tmp/fixed.mp4`;
-    const download = await downloadFile(bucketID, objectName, inputTempFileName);
     
     try {
+        const download = await downloadFile(bucketID, objectName, inputTempFileName);
         // ffmpeg(process.env.HOME + "/Desktop/broken.webm")
         console.log("\n\ninput file name --> ",inputTempFileName, "\n\n")
         ffmpeg(inputTempFileName)
@@ -218,11 +220,12 @@ async function webmToMP4TikTokUpload(req, res) {
             })
             .on("end", async () => {
                 console.log("ffmpeg file has been locally converted successfully!...");
-                const tiktokRespone = await uploadVideo(userId, outputTempFileName); 
+                const gsUploadResponse = await uploadFfmpegOutput(outputTempFileName, objectName);
+                const tiktokResponse = await uploadVideo(userId, outputTempFileName); 
                 deletefileFromlocalStorage(inputTempFileName);
                 deletefileFromlocalStorage(outputTempFileName);
                 console.timeEnd("time:");
-                res.json(tiktokRespone);
+                res.json({tiktokResponse, gsUploadResponse});
             })
             .on('error', (error) => console.log(`something went wrong ==> \n ${error}`))
             .run();
@@ -231,6 +234,31 @@ async function webmToMP4TikTokUpload(req, res) {
     } catch (error) {
         console.log("something wrong with ffmpeg --> ", error)
         res.json(error)
+    }
+}
+
+// this function will upload a file to ffmpeg output dir in gs
+async function uploadFfmpegOutput(filePath, objectName) {
+    const bucketName = '2une-video-transcode-bucket';
+    const destFileName = `ffmpeg-output/${objectName}`
+    const storage = new Storage();
+    const options = {
+        destination: destFileName,
+        // Optional:
+        // Set a generation-match precondition to avoid potential race conditions
+        // and data corruptions. The request to upload is aborted if the object's
+        // generation number does not match your precondition. For a destination
+        // object that does not yet exist, set the ifGenerationMatch precondition to 0
+        // If the destination object already exists in your bucket, set instead a
+        // generation-match precondition using its generation number.
+        // preconditionOpts: {ifGenerationMatch: generationMatchPrecondition},
+    };
+
+    try {
+        await storage.bucket(bucketName).upload(filePath, options);
+        console.log(`${filePath} uploaded to ${bucketName}`);
+    } catch (error) {
+        console.log("Couldn't upload ffmpeg output -->", error);
     }
 }
 
@@ -261,6 +289,7 @@ async function downloadFile(bucketID, gsFileName, inputTempFileName) {
         console.log("\n\nfile downloaded from bucket")
     } catch (error) {
         console.log("\n\n\ncould not download file from bucket --> ", error);
+        throw error;
     }
 }
 
@@ -280,7 +309,8 @@ async function generateV4UploadSignedUrl(req, res) {
         action: 'write',
         expires: Date.now() + 120 * 60 * 1000, // 120 minutes
         contentType: 'video/webm'
-      };
+    };
+
     try {
         // Get a v4 signed URL for uploading file
         const [url] = await storage
@@ -292,5 +322,6 @@ async function generateV4UploadSignedUrl(req, res) {
     } catch (error) {
         res.json(error)
     }
+
 }
 

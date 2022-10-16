@@ -7,7 +7,7 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "nodemon --exec \"npm start\"",
     "start": "npx functions-framework --target=hey --signature-type=http --port=8484",
-    "deploy": "gcloud functions deploy musictest-tiktok-auth --memory=512 --env-vars-file .env.yaml --entry-point hey --runtime nodejs14 --trigger-http --security-level=secure-optional --project music-test-352900"
+    "deploy": "gcloud functions deploy musictest-tiktok-auth --memory=8192 --timeout=120 --env-vars-file .env.yaml --entry-point hey --runtime nodejs14 --trigger-http --security-level=secure-optional --project music-test-352900"
   },
   "author": "Austin Turpen",
   "license": "ISC",
