@@ -87,6 +87,7 @@ async function insertUser(req, res) {
                 email
                 first_name
                 last_name
+                tiktok_list
             }
         }
     `
@@ -105,6 +106,11 @@ async function insertUser(req, res) {
         const data = await graphQLClient.request(INSERT_USER_MUTATION, variables)
         console.log(JSON.stringify(data, undefined, 2))
         const twilioResponse = await sendTwilioSMS("So you think you stan the 1975? You just joined the game. Congrats.", phone_numbers[0].phone_number)
+        // Update tiktok list after user has been inserted because there is no way to 
+        // guarentee that the create user webhook will fire before session create webhook.
+        // We were running into a case where we were trying to update list only on session created, but the 
+        // user had not yet been inserted into our db
+        updateTiktokList(id);
         res.send({data, twilioResponse});
     } catch (error) {
         console.log("something went wrong while inserting user --> ", error)
@@ -143,15 +149,14 @@ async function updateUser(req, res) {
 
 async function onCreateSession(req, res) {
     const { user_id } = req.body.data;
-    let tiktokList = "helloooo";
-    console.log("\N\NSESSION CREATED: \N", req.body.data)
-    try {
-        //want to refresh users tiktoks every session they start --> maybe we can do a chron job for this for high-profile users to ensure they're vid list is always fresh
-        tiktokList = await getVideoList(user_id);
-        
-    } catch (error) {
-        console.log(error)
-    }
+    console.log("SESSION CREATED");
+    updateTiktokList(user_id)
+
+}
+
+async function updateTiktokList(userId) {
+    //want to refresh users tiktoks every session they start --> maybe we can do a chron job for this for high-profile users to ensure they're vid list is always fresh
+    const tiktokList = await getVideoList(userId);     
 
     const UPDATE_USER_MUTATION = gql`
         mutation ($user: users_set_input!, $user_id: users_pk_columns_input!){
@@ -169,20 +174,17 @@ async function onCreateSession(req, res) {
             tiktok_list: tiktokList
         }, 
         user_id: {
-            id: user_id
+            id: userId
         }
     }
 
     //try to update user's tiktok vid list
     try {
         const data = await graphQLClient.request(UPDATE_USER_MUTATION, variables)
-        console.log("UPDATE USER VIDEO LIST MUTATION RESP --> ", data)
-        res.send(data)
+        console.log("UPDATE USER VIDEO LIST MUTATION RESP --> ", JSON.stringify(data))
     } catch (error) {
         console.log("UPDATE USER VIDEO LIST MUTATION ERR --> ", error)
-        res.send(data)
     }
-
 }
 
 
