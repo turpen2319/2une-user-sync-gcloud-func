@@ -150,7 +150,13 @@ async function updateUser(req, res) {
 async function onCreateSession(req, res) {
     const { user_id } = req.body.data;
     console.log("SESSION CREATED");
-    updateTiktokList(user_id)
+    try {
+        updateTiktokList(user_id);
+        res.send("updated list")
+    } catch (error) {
+        res.send("could not update list on session created --> ", error);
+    }
+    
 
 }
 
