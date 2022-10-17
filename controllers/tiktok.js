@@ -1,15 +1,12 @@
 const axios = require('axios').default;
-const { response } = require('express');
 const FormData = require('form-data');
 const asyncFs = require('fs/promises');
 const fs = require('fs');
 const { TranscoderServiceClient } =
 require('@google-cloud/video-transcoder').v1;
-const { Storage, StorageOptions } = require('@google-cloud/storage');
+const { Storage } = require('@google-cloud/storage');
 const ffmpegPath = require("@ffmpeg-installer/ffmpeg").path;
 const ffmpeg = require("fluent-ffmpeg");
-const moment = require("moment");
-const e = require('express');
 // set ffmpeg package path
 ffmpeg.setFfmpegPath(ffmpegPath);
 
@@ -23,7 +20,8 @@ module.exports = {
     getTikTokUploadParams,
     createJobFromPreset,
     webmToMP4TikTokUpload,
-    generateV4UploadSignedUrl
+    generateV4UploadSignedUrl,
+    fixMP4TikTokUpload
 }
 
 async function uploadVideo(userId, outputTempFileName) {
@@ -186,8 +184,55 @@ async function createJobFromPreset(req, res) {
         res.send(error)
     }
 }
- 
 
+// fixMP4TikTokUpload('draketest-user_2G9wmE9mtlFdEmDvokeIUwUOg4V-1665956676200.webm', 'user_2G9wmE9mtlFdEmDvokeIUwUOg4V')
+async function fixMP4TikTokUpload(req, res) {
+    const { objectName, userId } = req.body
+    console.log("hitting webmToMP4")
+    console.time("time:");
+    //download file from bucket into tmp dir
+    const bucketID = '2une-video-transcode-bucket';
+    const inputTempFileName = `/tmp/broken.webm`;
+    const outputTempFileName = `/tmp/fixed.mp4`;
+
+    try {
+        const download = await downloadFile(bucketID, objectName, inputTempFileName);
+        // ffmpeg(process.env.HOME + "/Desktop/broken.webm")
+        console.log("\n\ninput file name --> ",inputTempFileName, "\n\n")
+        ffmpeg(inputTempFileName)
+            .outputOptions(['-fflags +igndts'])
+            .output(outputTempFileName)
+            .audioCodec('copy')
+            .videoCodec('copy')
+            .on("start", (commandLine) => {
+                console.log("ffmpeg conversion start: ", commandLine);
+            })
+            .on("progress", function(progress) {
+                console.log("Processing: " + progress.percent + "% done");
+            })
+            .on("stderr", function(stderrLine) {
+                console.log("Stderr output: " + stderrLine);
+            })
+            .on("codecData", function(data) {
+                console.log("Input is " + data.audio + " audio " + "with " + data.video + " video");
+            })
+            .on("end", async () => {
+                console.log("ffmpeg file has been locally converted successfully!...");
+                const gsUploadResponse = await uploadFfmpegOutput(outputTempFileName, objectName);
+                const tiktokResponse = await uploadVideo(userId, outputTempFileName); 
+                deletefileFromlocalStorage(inputTempFileName);
+                deletefileFromlocalStorage(outputTempFileName);
+                console.timeEnd("time:");
+                res.json({tiktokResponse, gsUploadResponse});
+            })
+            .on('error', (error) => console.log(`something went wrong fixing mp4 ==> \n ${error}`))
+            .run(); 
+
+    } catch (error) {
+        console.log("could not fix mp4 and upload to tiktok --> ", error)
+        res.json("could not fix mp4 and upload to tiktok --> ", error)
+    }
+}
 
 async function webmToMP4TikTokUpload(req, res) {
     const { objectName, userId } = req.body
@@ -226,7 +271,7 @@ async function webmToMP4TikTokUpload(req, res) {
                 deletefileFromlocalStorage(inputTempFileName);
                 deletefileFromlocalStorage(outputTempFileName);
                 console.timeEnd("time:");
-                res.json({tiktokResponse, gsUploadResponse});
+                res.json(tiktokResponse);
             })
             .on('error', (error) => console.log(`something went wrong ==> \n ${error}`))
             .run();
