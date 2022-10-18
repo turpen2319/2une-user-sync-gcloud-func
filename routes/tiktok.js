@@ -8,6 +8,8 @@ router.get('/video-list/:userId', tiktokCtrl.getVideoList);
 router.get('/transcode', tiktokCtrl.createJobFromPreset);
 router.post('/generate-signed-url', tiktokCtrl.generateV4UploadSignedUrl);
 router.post('/webm-to-mp4-upload', tiktokCtrl.webmToMP4TikTokUpload);
+router.post('/mp4-to-mp4-upload', tiktokCtrl.fixMP4TikTokUpload);
+router.get('/list-file', tiktokCtrl.listFiles);
 // router.post('/test-ffmpeg', tiktokCtrl.ffmpegHandler);
 
 module.exports = router;
