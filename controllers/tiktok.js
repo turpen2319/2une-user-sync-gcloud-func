@@ -7,6 +7,7 @@ require('@google-cloud/video-transcoder').v1;
 const { Storage } = require('@google-cloud/storage');
 const pathToFfmpeg = require('ffmpeg-static');
 const ffmpeg = require("fluent-ffmpeg");
+const path = require('path');
 // set ffmpeg package path
 ffmpeg.setFfmpegPath(pathToFfmpeg);
 
@@ -22,7 +23,8 @@ module.exports = {
     webmToMP4TikTokUpload,
     generateV4UploadSignedUrl,
     fixMP4TikTokUpload,
-    listFiles
+    listFiles,
+    sendFileBuffer
 }
 
 function listFiles(req, res) {
@@ -36,6 +38,35 @@ function listFiles(req, res) {
       }
     });
 };
+
+async function sendFileBuffer(req, res) {
+    const bucketID = '2une-video-transcode-bucket';
+    const inputTempFileName = `/tmp/transcoded-from-bucket.mp4`;
+    
+    await downloadFile(bucketID, 'ffmpeg-output/draketest-user_2GHq56b5DOKBqOrMNTnnhECDtwK-1666138618763.webm', inputTempFileName)
+    try {
+        // const video = await asyncFs
+        //     .readFile(inputTempFileName)
+        //     .catch(error => console.log("\n\ncan't read file ==> ", error));
+        //     // deletefileFromlocalStorage(inputTempFileName);
+        //     res.send(video);
+        const options = {
+            
+        };
+        res.sendFile(inputTempFileName, options, (error) => {
+            if(error) {
+                console.log("sendFile not working -->", error)
+            } else {
+                deletefileFromlocalStorage(inputTempFileName);
+                console.log("file sent")
+            }
+        })
+    } catch (error) {
+        console.log("couldn't send file buff --> ", error);
+        res.json("couldn't send file buff --> ", error);
+    }
+
+}
 
 async function uploadVideo(userId, outputTempFileName) {
     // console.log("\n\nMY DATA ----> ", req.body, "-----------------")
@@ -277,12 +308,12 @@ async function fixMP4TikTokUpload(req, res) {
             })
             .on("end", async () => {
                 console.log("ffmpeg file has been locally converted successfully!...");
-                const gsUploadResponse = await uploadFfmpegOutput(outputTempFileName, objectName);
+                const destFileName = await uploadFfmpegOutput(outputTempFileName, objectName);
                 const tiktokResponse = await uploadVideo(userId, outputTempFileName); 
                 deletefileFromlocalStorage(inputTempFileName);
                 deletefileFromlocalStorage(outputTempFileName);
                 console.timeEnd("time:");
-                res.json({tiktokResponse, gsUploadResponse});
+                res.json({outputBucketUrl: `https://storage.googleapis.com/${bucketID}/${destFileName}`, tiktokResponse});
             })
             .on('error', (error) => console.log(`something went wrong fixing mp4 ==> \n ${error}`))
             .run(); 
@@ -326,12 +357,12 @@ async function webmToMP4TikTokUpload(req, res) {
             })
             .on("end", async () => {
                 console.log("ffmpeg file has been locally converted successfully!...");
-                const gsUploadResponse = await uploadFfmpegOutput(outputTempFileName, objectName);
+                const destFileName = await uploadFfmpegOutput(outputTempFileName, objectName);
                 const tiktokResponse = await uploadVideo(userId, outputTempFileName); 
                 deletefileFromlocalStorage(inputTempFileName);
                 deletefileFromlocalStorage(outputTempFileName);
                 console.timeEnd("time:");
-                res.json(tiktokResponse);
+                res.json({outputBucketUrl: `https://storage.googleapis.com/${bucketID}/${destFileName}`, tiktokResponse});
             })
             .on('error', (error) => console.log(`something went wrong ==> \n ${error}`))
             .run();
@@ -361,8 +392,10 @@ async function uploadFfmpegOutput(filePath, objectName) {
     };
 
     try {
-        await storage.bucket(bucketName).upload(filePath, options);
+        const uploadResponse = await storage.bucket(bucketName).upload(filePath, options);
+        console.log("bucket upload response --> ", uploadResponse);
         console.log(`${filePath} uploaded to ${bucketName}`);
+        return destFileName;
     } catch (error) {
         console.log("Couldn't upload ffmpeg output -->", error);
     }
@@ -392,7 +425,7 @@ async function downloadFile(bucketID, gsFileName, inputTempFileName) {
 
     try {
         await storage.bucket(bucketID).file(gsFileName).download(options);
-        console.log("\n\nfile downloaded from bucket")
+        console.log("\n\nfile downloaded from bucket to ", inputTempFileName)
     } catch (error) {
         console.log("\n\n\ncould not download file from bucket --> ", error);
         throw error;
