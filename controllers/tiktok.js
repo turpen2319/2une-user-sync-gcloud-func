@@ -24,7 +24,8 @@ module.exports = {
     generateV4UploadSignedUrl,
     fixMP4TikTokUpload,
     listFiles,
-    sendFileBuffer
+    sendFileBuffer,
+    getTikTokProfile
 }
 
 function listFiles(req, res) {
@@ -101,6 +102,26 @@ async function uploadVideo(userId, outputTempFileName) {
 }
 
 // uploadVideo('user_2G9wmE9mtlFdEmDvokeIUwUOg4V', process.env.HOME + '/Desktop/fix-safari-ios.mp4')
+
+async function getTikTokProfile(userId) {
+    const accessToken =  await getAccessToken(userId); 
+    const endpoint = 'https://open.tiktokapis.com/v2/user/info/?fields=open_id,union_id,avatar_url,display_name'
+
+    try {
+        const response = await axios({
+            method: "GET",
+            url: endpoint,
+            headers: {
+                "Authorization": "Bearer " + accessToken
+            }
+        })
+        console.log("profiel resp --> ", response.data.data.user)
+        return response.data.data.user
+    } catch (error) {
+        console.log("could not get tiktok profile --> ", error);
+    }
+}
+
 
 async function getVideoList(userId) {
 

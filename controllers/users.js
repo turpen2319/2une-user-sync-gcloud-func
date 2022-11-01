@@ -1,5 +1,5 @@
 const { GraphQLClient, gql } = require('graphql-request');
-const { getVideoList } = require('./tiktok');
+const { getVideoList, getTikTokProfile } = require('./tiktok');
 const axios = require('axios').default;
 const endpoint = process.env.GQL_ENDPOINT || 'http://localhost:8080/v1/graphql';
 
@@ -9,6 +9,7 @@ module.exports = {
     updateUser,
     onCreateSession,
     notifyLevelUp,
+    getClerkUser
 }
 
 
@@ -19,6 +20,28 @@ const graphQLClient = new GraphQLClient(endpoint, {
         "x-hasura-admin-secret": process.env.ADMIN_SECRET
     },
 })
+
+async function getClerkUser(userId) {
+    
+    const endpoint = `https://api.clerk.dev/v1/users/${userId}`//for fetching a user by id
+
+    try {
+        const response = await axios({
+            method: "GET",
+            url: endpoint,
+            headers: {
+                "Authorization": `Bearer ${process.env.CLERK_API_KEY}`,
+                "Content-type": "application/json"
+            }
+        });
+        const clerkUserObj = response.data;
+        
+        return clerkUserObj
+    } catch (error) {
+        console.log("couldn't get clerk user --> ", error);
+        return error;
+    }
+}
 
 async function inviteUser(req, res) {
     const { phoneNumber } = req.body;
@@ -97,8 +120,7 @@ async function insertUser(req, res) {
             email: email_addresses.length ? email_addresses[0].email_address : null,
             first_name: first_name || null,
             last_name: last_name || null,
-            profile_image_url: profile_image_url
-
+            profile_image_url: profile_image_url,
         }
     }
     
@@ -110,7 +132,8 @@ async function insertUser(req, res) {
         // guarentee that the create user webhook will fire before session create webhook.
         // We were running into a case where we were trying to update list only on session created, but the 
         // user had not yet been inserted into our db
-        updateTiktokList(id);
+        await updateTiktokDisplayName(id);
+        await updateTiktokList(id);
         res.send({data, twilioResponse});
     } catch (error) {
         console.log("something went wrong while inserting user --> ", error)
@@ -160,6 +183,36 @@ async function onCreateSession(req, res) {
 
 }
 
+async function updateTiktokDisplayName(userId) {
+    const profileResponse = await getTikTokProfile(userId);
+    const tiktok_display_name = profileResponse.display_name;
+    console.log("\n\n\nupdating dis name to --> ", tiktok_display_name);
+    const UPDATE_USER_MUTATION = gql`
+        mutation ($user: users_set_input!, $user_id: users_pk_columns_input!){
+            update_users_by_pk(_set: $user, pk_columns: $user_id) {
+                tiktok_display_name
+            }
+        } 
+    `
+    const variables = {
+        user: {
+            tiktok_display_name,
+            display_name: tiktok_display_name //setting 2une display name to tiktok name for now
+        }, 
+        user_id: {
+            id: userId
+        }
+    }
+
+    //try to update user's display names
+    try {
+        const data = await graphQLClient.request(UPDATE_USER_MUTATION, variables)
+        console.log("UPDATE USER DISPLAY NAME RESP --> ", JSON.stringify(data))
+    } catch (error) {
+        console.log("UPDATE USER DISPLAY NAME MUTATION ERR --> ", error)
+    }
+}
+
 async function updateTiktokList(userId) {
     //want to refresh users tiktoks every session they start --> maybe we can do a chron job for this for high-profile users to ensure they're vid list is always fresh
     const tiktokList = await getVideoList(userId);     
@@ -200,7 +253,7 @@ async function notifyLevelUp(req, res) {
     const authToken = process.env.TWILIO_AUTH_TOKEN;
     const client = require('twilio')(accountSid, authToken);
 
-    const msg = `Wooow ${score} points. Good job. Your replay will be ready on TikTok shortly.` //having routing to the level would be cool here
+    const msg = `Wow ${score} points. Good job. Your replay will be ready on TikTok shortly.` //having routing to the level would be cool here
     try {
         const response = await client.messages
             .create({
