@@ -191,13 +191,14 @@ async function updateTiktokDisplayName(userId) {
         mutation ($user: users_set_input!, $user_id: users_pk_columns_input!){
             update_users_by_pk(_set: $user, pk_columns: $user_id) {
                 tiktok_display_name
+                display_name
             }
         } 
     `
     const variables = {
         user: {
-            tiktok_display_name,
-            display_name: tiktok_display_name //setting 2une display name to tiktok name for now
+            display_name: tiktok_display_name, //setting 2une display name to tiktok name for now
+            tiktok_display_name: tiktok_display_name,
         }, 
         user_id: {
             id: userId
