@@ -158,7 +158,6 @@ async function updateUser(req, res) {
         user: {
           email: email_addresses.length ? email_addresses[0].email_address : null,
           first_name: first_name || null,
-          display_name: display_name || null
         },
         user_id: {
           id: id
@@ -197,8 +196,8 @@ async function updateTiktokDisplayName(userId) {
     `
     const variables = {
         user: {
-            display_name: tiktok_display_name, //setting 2une display name to tiktok name for now
-            tiktok_display_name: tiktok_display_name,
+            "display_name": tiktok_display_name, //setting 2une display name to tiktok name for now
+            "tiktok_display_name": tiktok_display_name,
         }, 
         user_id: {
             id: userId
