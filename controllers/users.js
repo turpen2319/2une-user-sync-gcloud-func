@@ -248,12 +248,12 @@ async function updateTiktokList(userId) {
 
 
 async function notifyLevelUp(req, res) {
-    const { level, score, artist, phoneNumber } = req.body; // why was the console in my local react app giving me a cors error when it was just that I was trying to access these props via req.body.data??? was the res not set yet? need better error handling
+    const { level, score, artist, phoneNumber, rank } = req.body; // why was the console in my local react app giving me a cors error when it was just that I was trying to access these props via req.body.data??? was the res not set yet? need better error handling
     const accountSid = process.env.TWILIO_ACCOUNT_SID;
     const authToken = process.env.TWILIO_AUTH_TOKEN;
     const client = require('twilio')(accountSid, authToken);
 
-    const msg = `Wow ${score} points. Good job. Your replay will be ready on TikTok shortly.` //having routing to the level would be cool here
+    const msg = `After ${level} ${Number(level) === 1 ? 'level' : 'levels'} you ranked #${rank}. Good job. Your replay will be ready on TikTok shortly.` //having routing to the level would be cool here
     try {
         const response = await client.messages
             .create({
